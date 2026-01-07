@@ -1,0 +1,32 @@
+-- (Opcionalno) kreiranje baze
+CREATE DATABASE IF NOT EXISTS korisnici
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;
+
+USE korisnici;
+
+-- 1) Users tabela (login/registracija + MFA)
+CREATE TABLE IF NOT EXISTS users (
+  username    VARCHAR(50)  NOT NULL,
+  email       VARCHAR(120) NOT NULL,
+  password    VARCHAR(255) NOT NULL,
+
+  mfa_secret  VARCHAR(64)  NULL,
+  mfa_enabled TINYINT(1)   NOT NULL DEFAULT 0,
+
+  PRIMARY KEY (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2) Lockout / rate limit tabela (po emailu)
+CREATE TABLE IF NOT EXISTS login_throttle (
+  email         VARCHAR(120) NOT NULL,
+  fails         INT NOT NULL DEFAULT 0,
+  first_fail_at INT NOT NULL DEFAULT 0,
+  locked_until  INT NOT NULL DEFAULT 0,
+
+  PRIMARY KEY (email),
+  CONSTRAINT fk_login_throttle_email
+    FOREIGN KEY (email) REFERENCES users(email)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

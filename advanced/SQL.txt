@@ -1,0 +1,14 @@
+CREATE DATABASE korisnici;
+
+CREATE TABLE users (
+  username VARCHAR(50) NOT NULL,
+  email VARCHAR(120) NOT NULL PRIMARY KEY,
+  password VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE login_throttle (
+  email VARCHAR(255) NOT NULL PRIMARY KEY,
+  fails INT NOT NULL DEFAULT 0,
+  first_fail_at INT NOT NULL DEFAULT 0,
+  locked_until INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
