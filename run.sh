@@ -53,7 +53,7 @@ echo "------------------------------------------------"
 # That is why the Lock Check below is crucial.
 
 OUTPUT=$(hydra -l $USER -P $WORDLIST -t 1 -o /dev/null localhost http-form-post "$URL_PATH:email=^USER^&password=^PASS^&submit=Submit:F=$FAIL_MSG" 2>&1)
-
+echo "$OUTPUT"
 # --- CHECK FOR LOCKOUT ---
 # As requested: Check strictly if account is locked. If so, STOP.
 # We probe the server manually with curl to see the current status.

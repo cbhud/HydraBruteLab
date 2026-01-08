@@ -150,6 +150,7 @@ if (isset($_POST['submit'])) {
         <strong>LAB</strong>
         <nav style="margin-top:8px;">
             <a href="index.php">Početna</a>
+            <a href="register.php">Registracija</a>
             <a href="login.php">Prijava</a>
         </nav>
     </div>
