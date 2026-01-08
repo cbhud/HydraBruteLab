@@ -72,6 +72,7 @@ if (isset($_POST['submit'])) {
         <nav style="margin-top:8px;">
             <a href="index.php">Početna</a>
             <a href="login.php">Prijava</a>
+            <a href="register.php">Registracija</a>
         </nav>
     </div>
 </header>
