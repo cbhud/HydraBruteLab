@@ -22,3 +22,22 @@ Ensure your local server is running via XAMPP:
 ```bash
 sudo /opt/lampp/lampp start
 ```
+
+---
+
+### 1. Prepare the Script
+Make sure the bash script is executable:
+```bash
+sudo /opt/lampp/lampp start
+```
+
+---
+
+### 3. Run the Demonstration
+Execute the script and choose the target environment (1 for Simple, 2 for Advanced):
+```bash
+sudo ./run.sh
+```
+
+
+** Project created for University Coursework - 2026 **
